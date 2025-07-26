@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "react-toastify";
 import { format, differenceInDays, isWeekend, addDays } from "date-fns";
+import { apiClient } from "@/lib/api";
 
 const leaveTypes = [
   { value: "VACATION", label: "Vacation", description: "Planned time off for personal activities" },
@@ -86,13 +87,17 @@ export default function LeaveRequestPage() {
     setIsSubmitting(true);
     
     try {
-      // Mock API call - in real app, this would be apiClient.createLeaveRequest
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await apiClient.createLeaveRequest({
+        leaveType: formData.leaveType,
+        from: formData.fromDate,
+        to: formData.toDate,
+        reason: formData.reason
+      });
       
       toast.success("Leave request submitted successfully! Your manager will review it shortly.");
       navigate("/leaves");
     } catch (error) {
-      toast.error("Failed to submit leave request. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Failed to submit leave request. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

@@ -9,62 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { toast } from "react-toastify";
-
-const mockLeaveRequests = [
-  {
-    _id: "1",
-    leaveType: "VACATION",
-    from: "2024-01-15",
-    to: "2024-01-19",
-    days: 5,
-    status: "APPROVED",
-    reason: "Family vacation to the mountains",
-    createdAt: "2024-01-01",
-    approver: { firstName: "Jane", lastName: "Smith" },
-  },
-  {
-    _id: "2",
-    leaveType: "SICK",
-    from: "2024-01-22",
-    to: "2024-01-22",
-    days: 1,
-    status: "PENDING",
-    reason: "Medical appointment with specialist",
-    createdAt: "2024-01-20",
-  },
-  {
-    _id: "3",
-    leaveType: "CASUAL",
-    from: "2024-01-10",
-    to: "2024-01-11",
-    days: 2,
-    status: "REJECTED",
-    reason: "Personal work - house repairs",
-    createdAt: "2024-01-05",
-    approver: { firstName: "John", lastName: "Manager" },
-  },
-  {
-    _id: "4",
-    leaveType: "WFH",
-    from: "2024-01-08",
-    to: "2024-01-08",
-    days: 1,
-    status: "APPROVED",
-    reason: "Working from home due to internet installation",
-    createdAt: "2024-01-06",
-    approver: { firstName: "Jane", lastName: "Smith" },
-  },
-  {
-    _id: "5",
-    leaveType: "ACADEMIC",
-    from: "2024-02-01",
-    to: "2024-02-03",
-    days: 3,
-    status: "PENDING",
-    reason: "Attending React conference for professional development",
-    createdAt: "2024-01-25",
-  },
-];
+import { apiClient } from "@/lib/api";
+import { useEffect } from "react";
 
 const statusFilters = [
   { value: "all", label: "All Status" },
@@ -87,6 +33,41 @@ export default function LeavesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0
+  });
+
+  useEffect(() => {
+    fetchLeaveRequests();
+  }, [statusFilter, typeFilter, searchTerm]);
+
+  const fetchLeaveRequests = async () => {
+    try {
+      setLoading(true);
+      const params: any = {
+        page: pagination.page,
+        limit: pagination.limit
+      };
+      
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (typeFilter !== 'all') params.leaveType = typeFilter;
+      if (searchTerm) params.search = searchTerm;
+      
+      const response = await apiClient.getLeaveRequests(params);
+      setLeaveRequests(response.data);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error('Failed to fetch leave requests:', error);
+      toast.error('Failed to fetch leave requests');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -133,18 +114,14 @@ export default function LeavesPage() {
     }
   };
 
-  const filteredRequests = mockLeaveRequests.filter((request) => {
-    const matchesSearch = request.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.leaveType.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || request.status === statusFilter;
-    const matchesType = typeFilter === "all" || request.leaveType === typeFilter;
-    
-    return matchesSearch && matchesStatus && matchesType;
-  });
-
-  const handleCancelRequest = (id: string) => {
-    toast.success("Leave request cancelled successfully");
-    // In real app, would call API to cancel request
+  const handleCancelRequest = async (id: string) => {
+    try {
+      await apiClient.updateLeaveRequest(id, { status: 'CANCELLED' });
+      toast.success("Leave request cancelled successfully");
+      fetchLeaveRequests();
+    } catch (error) {
+      toast.error('Failed to cancel leave request');
+    }
   };
 
   return (
@@ -231,7 +208,12 @@ export default function LeavesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredRequests.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-2 text-muted-foreground">Loading...</p>
+            </div>
+          ) : leaveRequests.length === 0 ? (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No leave requests found</h3>
@@ -262,7 +244,7 @@ export default function LeavesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRequests.map((request) => (
+                  {leaveRequests.map((request: any) => (
                     <TableRow key={request._id}>
                       <TableCell>
                         <Badge
@@ -304,9 +286,9 @@ export default function LeavesPage() {
                           <p className="text-sm truncate" title={request.reason}>
                             {request.reason}
                           </p>
-                          {request.approver && (
+                          {request.approverId && (
                             <p className="text-xs text-muted-foreground">
-                              by {request.approver.firstName} {request.approver.lastName}
+                              by {request.approverId.firstName} {request.approverId.lastName}
                             </p>
                           )}
                         </div>

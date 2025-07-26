@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "react-toastify";
-import heroBackground from "@/assets/hero-background.jpg";
+import { apiClient } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -23,32 +23,13 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Mock login - in real app, this would be an API call
-      const mockUser = {
-        _id: "1",
-        firstName: "John",
-        lastName: "Doe",
-        email,
-        employeeId: "EMP001",
-        role: "EMPLOYEE" as const,
-        department: "Engineering",
-        leaveBalances: {
-          sick: 10,
-          casual: 12,
-          vacation: 20,
-          academic: 5,
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const mockToken = "mock-jwt-token";
+      const response = await apiClient.login(email, password);
       
-      login(mockUser, mockToken);
+      login(response.data.user, response.data.token);
       toast.success("Welcome back! Login successful.");
       navigate("/dashboard");
     } catch (error) {
-      toast.error("Invalid credentials. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -57,12 +38,6 @@ export default function LoginPage() {
   return (
     <div 
       className="min-h-screen flex items-center justify-center p-4 relative"
-      style={{
-        backgroundImage: `linear-gradient(rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2)), url(${heroBackground})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
     >
       <Card className="w-full max-w-md shadow-card">
         <CardHeader className="text-center space-y-4">
@@ -146,9 +121,9 @@ export default function LoginPage() {
             <p className="text-sm text-muted-foreground">
               Demo Credentials: <br />
               <span className="font-mono text-xs">
-                Employee: john@company.com / password<br />
-                Manager: jane@company.com / password<br />
-                Admin: admin@company.com / password
+                Employee: john@company.com / employee123<br />
+                Manager: manager@company.com / manager123<br />
+                Admin: admin@company.com / admin123
               </span>
             </p>
           </div>

@@ -19,75 +19,83 @@ import {
   UserPlus
 } from "lucide-react";
 import { format } from "date-fns";
-
-const mockUsers = [
-  {
-    _id: "1",
-    firstName: "John",
-    lastName: "Doe",
-    email: "john@company.com",
-    employeeId: "EMP001",
-    role: "EMPLOYEE",
-    department: "Engineering",
-    leaveBalances: { vacation: 20, sick: 10, casual: 12, academic: 5 },
-    status: "ACTIVE",
-    joiningDate: "2023-01-15",
-  },
-  {
-    _id: "2",
-    firstName: "Jane",
-    lastName: "Smith",
-    email: "jane@company.com",
-    employeeId: "EMP002",
-    role: "MANAGER",
-    department: "Engineering",
-    leaveBalances: { vacation: 25, sick: 12, casual: 15, academic: 8 },
-    status: "ACTIVE",
-    joiningDate: "2022-03-10",
-  },
-  {
-    _id: "3",
-    firstName: "Alice",
-    lastName: "Johnson",
-    email: "alice@company.com",
-    employeeId: "EMP003",
-    role: "EMPLOYEE",
-    department: "Marketing",
-    leaveBalances: { vacation: 18, sick: 8, casual: 10, academic: 3 },
-    status: "ACTIVE",
-    joiningDate: "2023-06-20",
-  },
-];
-
-const mockPendingApprovals = [
-  {
-    _id: "1",
-    user: { firstName: "Bob", lastName: "Wilson", employeeId: "EMP004" },
-    leaveType: "VACATION",
-    from: "2024-02-01",
-    to: "2024-02-05",
-    days: 5,
-    reason: "Family vacation",
-    appliedOn: "2024-01-20",
-  },
-  {
-    _id: "2",
-    user: { firstName: "Sarah", lastName: "Davis", employeeId: "EMP005" },
-    leaveType: "SICK",
-    from: "2024-01-30",
-    to: "2024-01-30",
-    days: 1,
-    reason: "Medical appointment",
-    appliedOn: "2024-01-28",
-  },
-];
+import { apiClient } from "@/lib/api";
+import { useEffect } from "react";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [users, setUsers] = useState([]);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [dashboardStats, setDashboardStats] = useState({
+    totalEmployees: 0,
+    pendingApprovals: 0,
+    totalLeaveRequests: 0,
+    approvedThisMonth: 0,
+    rejectedThisMonth: 0
+  });
+  const [loading, setLoading] = useState(true);
 
   const departments = ["Engineering", "Marketing", "HR", "Finance", "Operations"];
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers();
+    } else if (activeTab === 'approvals') {
+      fetchPendingApprovals();
+    }
+  }, [activeTab, searchTerm, departmentFilter]);
+
+  const fetchDashboardData = async () => {
+    try {
+      const response = await apiClient.getDashboardStats();
+      setDashboardStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const params: any = {};
+      if (searchTerm) params.search = searchTerm;
+      if (departmentFilter !== 'all') params.department = departmentFilter;
+      
+      const response = await apiClient.getUsers(params);
+      setUsers(response.data);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPendingApprovals = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.getLeaveRequests({ status: 'PENDING' });
+      setPendingApprovals(response.data);
+    } catch (error) {
+      console.error('Failed to fetch pending approvals:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApproveReject = async (id: string, status: 'APPROVED' | 'REJECTED') => {
+    try {
+      await apiClient.updateLeaveRequest(id, { status });
+      fetchPendingApprovals();
+    } catch (error) {
+      console.error('Failed to update leave request:', error);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -113,18 +121,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredUsers = mockUsers.filter((user) => {
-    const matchesSearch = 
-      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesDepartment = departmentFilter === "all" || user.department === departmentFilter;
-    
-    return matchesSearch && matchesDepartment;
-  });
-
   return (
     <div className="space-y-6">
       <div>
@@ -142,7 +138,7 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">247</div>
+            <div className="text-2xl font-bold">{dashboardStats.totalEmployees}</div>
             <p className="text-xs text-muted-foreground">
               +12 from last month
             </p>
@@ -155,7 +151,7 @@ export default function AdminDashboard() {
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">23</div>
+            <div className="text-2xl font-bold">{dashboardStats.pendingApprovals}</div>
             <p className="text-xs text-muted-foreground">
               Require attention
             </p>
@@ -168,7 +164,7 @@ export default function AdminDashboard() {
             <Calendar className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">142</div>
+            <div className="text-2xl font-bold">{dashboardStats.approvedThisMonth}</div>
             <p className="text-xs text-muted-foreground">
               85% approved rate
             </p>
@@ -322,7 +318,7 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
+                  {users.map((user: any) => (
                     <TableRow key={user._id}>
                       <TableCell>
                         <div className="flex items-center space-x-3">
@@ -352,11 +348,11 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(user.status)} variant="secondary">
-                          {user.status}
+                          {user.isActive ? 'ACTIVE' : 'INACTIVE'}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {format(new Date(user.joiningDate), "MMM yyyy")}
+                        {format(new Date(user.createdAt), "MMM yyyy")}
                       </TableCell>
                       <TableCell>
                         <Button variant="ghost" size="sm">
@@ -380,18 +376,18 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockPendingApprovals.map((request) => (
+              {pendingApprovals.map((request: any) => (
                 <div key={request._id} className="border border-border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-3">
                       <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
                         <span className="text-sm font-medium text-primary-foreground">
-                          {request.user.firstName.charAt(0)}{request.user.lastName.charAt(0)}
+                          {request.userId?.firstName?.charAt(0)}{request.userId?.lastName?.charAt(0)}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium">{request.user.firstName} {request.user.lastName}</p>
-                        <p className="text-sm text-muted-foreground">{request.user.employeeId}</p>
+                        <p className="font-medium">{request.userId?.firstName} {request.userId?.lastName}</p>
+                        <p className="text-sm text-muted-foreground">{request.userId?.employeeId}</p>
                       </div>
                     </div>
                     <Badge variant="outline" className="bg-yellow-50 text-yellow-800">
@@ -412,16 +408,24 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">Applied On</p>
-                      <p className="text-sm text-muted-foreground">{format(new Date(request.appliedOn), "MMM dd, yyyy")}</p>
+                      <p className="text-sm text-muted-foreground">{format(new Date(request.createdAt), "MMM dd, yyyy")}</p>
                     </div>
                   </div>
 
                   <div className="flex space-x-2">
-                    <Button size="sm" variant="success">
+                    <Button 
+                      size="sm" 
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => handleApproveReject(request._id, 'APPROVED')}
+                    >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Approve
                     </Button>
-                    <Button size="sm" variant="destructive">
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      onClick={() => handleApproveReject(request._id, 'REJECTED')}
+                    >
                       <XCircle className="h-4 w-4 mr-2" />
                       Reject
                     </Button>

@@ -4,50 +4,37 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, ChevronLeft, ChevronRight, Users, Clock } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths } from "date-fns";
-
-const mockCalendarEvents = [
-  {
-    id: "1",
-    user: { firstName: "John", lastName: "Doe" },
-    leaveType: "VACATION",
-    from: "2024-01-15",
-    to: "2024-01-19",
-    status: "APPROVED",
-  },
-  {
-    id: "2",
-    user: { firstName: "Alice", lastName: "Johnson" },
-    leaveType: "SICK",
-    from: "2024-01-22",
-    to: "2024-01-22",
-    status: "APPROVED",
-  },
-  {
-    id: "3",
-    user: { firstName: "Bob", lastName: "Wilson" },
-    leaveType: "CASUAL",
-    from: "2024-01-25",
-    to: "2024-01-26",
-    status: "PENDING",
-  },
-  {
-    id: "4",
-    user: { firstName: "Sarah", lastName: "Davis" },
-    leaveType: "WFH",
-    from: "2024-01-29",
-    to: "2024-01-29",
-    status: "APPROVED",
-  },
-];
-
-const holidays = [
-  { date: "2024-01-01", name: "New Year's Day" },
-  { date: "2024-01-26", name: "Republic Day" },
-];
+import { apiClient } from "@/lib/api";
+import { useEffect } from "react";
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [calendarEvents, setCalendarEvents] = useState([]);
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCalendarData();
+  }, [currentDate]);
+
+  const fetchCalendarData = async () => {
+    try {
+      setLoading(true);
+      const year = currentDate.getFullYear();
+      const [leaveResponse, holidayResponse] = await Promise.all([
+        apiClient.getLeaveRequests({ status: 'APPROVED' }),
+        apiClient.getHolidays({ year })
+      ]);
+      
+      setCalendarEvents(leaveResponse.data);
+      setHolidays(holidayResponse.data);
+    } catch (error) {
+      console.error('Failed to fetch calendar data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -73,7 +60,7 @@ export default function CalendarPage() {
   };
 
   const getEventsForDate = (date: Date) => {
-    return mockCalendarEvents.filter((event) => {
+    return calendarEvents.filter((event: any) => {
       const eventStart = new Date(event.from);
       const eventEnd = new Date(event.to);
       return date >= eventStart && date <= eventEnd;
@@ -177,12 +164,12 @@ export default function CalendarPage() {
                     )}
                     
                     <div className="space-y-1">
-                      {events.slice(0, 2).map((event) => (
+                      {events.slice(0, 2).map((event: any) => (
                         <div
-                          key={event.id}
+                          key={event._id}
                           className={`text-xs px-1 py-0.5 rounded truncate ${getLeaveTypeColor(event.leaveType)}`}
                         >
-                          {event.user.firstName}
+                          {event.userId?.firstName}
                         </div>
                       ))}
                       {events.length > 2 && (
@@ -254,10 +241,10 @@ export default function CalendarPage() {
                       <span>Team Members on Leave ({selectedEvents.length})</span>
                     </h4>
                     {selectedEvents.map((event) => (
-                      <div key={event.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                      <div key={event._id} className="flex items-center justify-between p-3 border border-border rounded-lg">
                         <div>
                           <p className="font-medium">
-                            {event.user.firstName} {event.user.lastName}
+                            {event.userId?.firstName} {event.userId?.lastName}
                           </p>
                           <div className="flex items-center space-x-2 mt-1">
                             <Badge
@@ -300,18 +287,18 @@ export default function CalendarPage() {
             <CardContent className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Total Leaves</span>
-                <span className="font-medium">{mockCalendarEvents.length}</span>
+                <span className="font-medium">{calendarEvents.length}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Approved</span>
                 <span className="font-medium text-green-600">
-                  {mockCalendarEvents.filter(e => e.status === "APPROVED").length}
+                  {calendarEvents.filter((e: any) => e.status === "APPROVED").length}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Pending</span>
                 <span className="font-medium text-yellow-600">
-                  {mockCalendarEvents.filter(e => e.status === "PENDING").length}
+                  {calendarEvents.filter((e: any) => e.status === "PENDING").length}
                 </span>
               </div>
               <div className="flex justify-between">

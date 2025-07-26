@@ -5,58 +5,35 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/authStore";
 import { Link } from "react-router-dom";
 import { format, addDays, startOfMonth, endOfMonth } from "date-fns";
-
-const mockLeaveRequests = [
-  {
-    _id: "1",
-    leaveType: "VACATION",
-    from: "2024-01-15",
-    to: "2024-01-19",
-    days: 5,
-    status: "APPROVED",
-    reason: "Family vacation",
-  },
-  {
-    _id: "2",
-    leaveType: "SICK",
-    from: "2024-01-22",
-    to: "2024-01-22",
-    days: 1,
-    status: "PENDING",
-    reason: "Medical appointment",
-  },
-  {
-    _id: "3",
-    leaveType: "CASUAL",
-    from: "2024-01-10",
-    to: "2024-01-11",
-    days: 2,
-    status: "REJECTED",
-    reason: "Personal work",
-  },
-];
-
-const mockUpcomingLeaves = [
-  {
-    _id: "1",
-    user: { firstName: "Alice", lastName: "Johnson" },
-    leaveType: "VACATION",
-    from: "2024-01-25",
-    to: "2024-01-29",
-    days: 5,
-  },
-  {
-    _id: "2",
-    user: { firstName: "Bob", lastName: "Wilson" },
-    leaveType: "SICK",
-    from: "2024-01-30",
-    to: "2024-01-30",
-    days: 1,
-  },
-];
+import { apiClient } from "@/lib/api";
+import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [upcomingLeaves, setUpcomingLeaves] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        const [leaveResponse, upcomingResponse] = await Promise.all([
+          apiClient.getLeaveRequests({ limit: 3 }),
+          apiClient.getLeaveRequests({ status: 'APPROVED', limit: 3 })
+        ]);
+        
+        setLeaveRequests(leaveResponse.data);
+        setUpcomingLeaves(upcomingResponse.data);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -166,7 +143,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockLeaveRequests.map((request) => (
+              {leaveRequests.map((request: any) => (
                 <div
                   key={request._id}
                   className="flex items-center justify-between p-3 border border-border rounded-lg"
@@ -231,7 +208,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockUpcomingLeaves.map((leave) => (
+              {upcomingLeaves.map((leave: any) => (
                 <div
                   key={leave._id}
                   className="flex items-center justify-between p-3 border border-border rounded-lg"
@@ -239,12 +216,12 @@ export default function DashboardPage() {
                   <div className="flex items-center space-x-3">
                     <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
                       <span className="text-xs font-medium text-primary-foreground">
-                        {leave.user.firstName.charAt(0)}{leave.user.lastName.charAt(0)}
+                        {leave.userId?.firstName?.charAt(0)}{leave.userId?.lastName?.charAt(0)}
                       </span>
                     </div>
                     <div>
                       <p className="text-sm font-medium">
-                        {leave.user.firstName} {leave.user.lastName}
+                        {leave.userId?.firstName} {leave.userId?.lastName}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(leave.from), "MMM dd")} - {format(new Date(leave.to), "MMM dd")}

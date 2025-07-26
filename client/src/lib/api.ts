@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/store/authStore';
 import { ApiResponse, PaginatedResponse } from '@/types';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 class ApiClient {
   private baseURL: string;
@@ -47,14 +47,14 @@ class ApiClient {
 
   // Auth endpoints
   async login(email: string, password: string) {
-    return this.request<ApiResponse<{ user: any; token: string }>>('/auth/login', {
+    return this.request<ApiResponse<{ user: any; token: string; refreshToken: string }>>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
   }
 
   async register(userData: any) {
-    return this.request<ApiResponse<{ user: any; token: string }>>('/auth/register', {
+    return this.request<ApiResponse<{ user: any; token: string; refreshToken: string }>>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -62,6 +62,13 @@ class ApiClient {
 
   async getCurrentUser() {
     return this.request<ApiResponse<any>>('/auth/me');
+  }
+
+  async refreshToken(refreshToken: string) {
+    return this.request<ApiResponse<{ token: string; refreshToken: string }>>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    });
   }
 
   // Leave requests
@@ -107,8 +114,9 @@ class ApiClient {
     return this.request<ApiResponse<any>>('/admin/dashboard');
   }
 
-  async getHolidays() {
-    return this.request<ApiResponse<any[]>>('/holidays');
+  async getHolidays(params?: any) {
+    const queryString = params ? `?${new URLSearchParams(params)}` : '';
+    return this.request<ApiResponse<any[]>>(`/holidays${queryString}`);
   }
 
   async createHoliday(data: any) {
