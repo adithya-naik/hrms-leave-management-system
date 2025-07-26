@@ -152,6 +152,9 @@ app.use('*', (req, res) => {
     message: 'Route not found'
   });
 });
+// Add this at the top of emailService.ts after imports
+console.log('RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'Found' : 'Missing');
+console.log('Environment loaded:', !!process.env.NODE_ENV);
 
 // Start server
 const startServer = async () => {

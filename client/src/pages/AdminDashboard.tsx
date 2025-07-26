@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "react-toastify";
 import {
   Table,
   TableBody,
@@ -36,6 +37,8 @@ import {
   Filter,
   MoreHorizontal,
   UserPlus,
+  Trash2,
+  Edit,
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api";
@@ -354,7 +357,7 @@ export default function AdminDashboard() {
                 <Input
                   placeholder="Search employees..."
                   value={searchTerm}
-                  b
+                  
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
@@ -478,7 +481,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       )}
-
       {activeTab === "approvals" && (
         <Card className="shadow-card">
           <CardHeader>

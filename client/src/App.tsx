@@ -15,6 +15,7 @@ import ProfilePage from "./pages/ProfilePage";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import ApplyLeavePage from "@/pages/ApplyLeavePage";
+import UsersListPage from "@/pages/UsersListPage";
 // Layout
 import { Layout } from "./components/layout/Layout";
 import { useAuthStore } from "./store/authStore";
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="admin/*" element={<AdminDashboard />} />
+            <Route path="/users" element={<UsersListPage />} />
           </Route>
           
           {/* Fallback Routes */}

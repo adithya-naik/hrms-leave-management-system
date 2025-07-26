@@ -2,7 +2,10 @@ import { Request, Response } from 'express';
 import { User } from '../models/User';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import { generateEmployeeId } from '../utils/helpers';
+import { LeaveRequest } from '../models/LeaveRequest';
+import { emailService } from '../services/emailService';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -203,12 +206,15 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Generate temporary password if not provided
+    const tempPassword = password || crypto.randomBytes(8).toString('hex');
+
     // Create user data
     const userData: any = {
       firstName,
       lastName,
       email,
-      password,
+      password: tempPassword, // Will be hashed by pre-save middleware
       employeeId,
       role,
       department,
@@ -224,13 +230,28 @@ export const createUser = async (req: AuthRequest, res: Response) => {
     const user = new User(userData);
     await user.save();
 
+    // Send welcome email
+    try {
+      await emailService.sendWelcomeEmail(
+        email,
+        `${firstName} ${lastName}`,
+        tempPassword,
+        employeeId,
+        department
+      );
+      console.log(`📧 Welcome email sent to: ${email}`);
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError);
+      // Don't fail user creation if email fails
+    }
+
     const populatedUser = await User.findById(user._id)
       .populate('managerId', 'firstName lastName employeeId')
       .select('-password');
 
     res.status(201).json({
       success: true,
-      message: 'User created successfully',
+      message: 'User created successfully and welcome email sent',
       data: populatedUser
     });
   } catch (error: any) {
@@ -531,6 +552,239 @@ export const getManagers = async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch managers'
+    });
+  }
+};
+
+// Get all users with detailed information
+export const getAllUsersWithDetails = async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      page = 1,
+      limit = 50,
+      search,
+      department,
+      role,
+      status
+    } = req.query;
+
+    // Build filter object
+    const filter: any = {};
+
+    if (search) {
+      filter.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { employeeId: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (department && department !== 'all') {
+      filter.department = department;
+    }
+
+    if (role && role !== 'all') {
+      filter.role = role;
+    }
+
+    if (status && status !== 'all') {
+      filter.isActive = status === 'active';
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Fetch users with populated manager details
+    const users = await User.find(filter)
+      .populate({
+        path: 'managerId',
+        select: 'firstName lastName employeeId email department',
+        match: { isActive: true } // Only populate active managers
+      })
+      .select('-password') // Exclude password field
+      .sort({ firstName: 1, lastName: 1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const total = await User.countDocuments(filter);
+
+    // Calculate additional stats for each user using aggregation for better performance
+    const usersWithStats = await Promise.all(
+      users.map(async (user) => {
+        const userObj = user.toObject();
+        
+        try {
+          // Use Promise.all for parallel queries for better performance
+          const [
+            totalLeaveRequests,
+            pendingLeaves,
+            approvedLeaves,
+            rejectedLeaves,
+            // Get recent leave requests
+            recentLeaves
+          ] = await Promise.all([
+            LeaveRequest.countDocuments({
+              userId: user._id,
+              deletedAt: null
+            }),
+            LeaveRequest.countDocuments({
+              userId: user._id,
+              status: 'PENDING',
+              deletedAt: null
+            }),
+            LeaveRequest.countDocuments({
+              userId: user._id,
+              status: 'APPROVED',
+              deletedAt: null
+            }),
+            LeaveRequest.countDocuments({
+              userId: user._id,
+              status: 'REJECTED',
+              deletedAt: null
+            }),
+            LeaveRequest.find({
+              userId: user._id,
+              deletedAt: null
+            })
+              .sort({ createdAt: -1 })
+              .limit(3)
+              .select('leaveType status from to days createdAt')
+          ]);
+
+          // Calculate total leave balance from your schema
+          const leaveBalances = userObj.leaveBalances || {
+            vacation: 21,
+            sick: 12,
+            casual: 12,
+            academic: 5
+          };
+
+          const totalLeaveBalance = leaveBalances.vacation + 
+                                  leaveBalances.sick + 
+                                  leaveBalances.casual + 
+                                  leaveBalances.academic;
+
+          // Calculate used leave days (approved leaves)
+          const usedLeaveDays = await LeaveRequest.aggregate([
+            {
+              $match: {
+                userId: user._id,
+                status: 'APPROVED',
+                deletedAt: null
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalDays: { $sum: '$days' }
+              }
+            }
+          ]);
+
+          const totalUsedDays = usedLeaveDays.length > 0 ? usedLeaveDays[0].totalDays : 0;
+          const remainingBalance = totalLeaveBalance - totalUsedDays;
+
+          return {
+            ...userObj,
+            stats: {
+              totalLeaveRequests,
+              pendingLeaves,
+              approvedLeaves,
+              rejectedLeaves,
+              totalLeaveBalance,
+              totalUsedDays,
+              remainingBalance,
+              recentLeaves
+            },
+            // Add computed fields
+            fullName: `${userObj.firstName} ${userObj.lastName}`,
+            managerInfo: userObj.managerId ? {
+              id: userObj.managerId._id,
+              name: `${userObj.managerId.firstName} ${userObj.managerId.lastName}`,
+              employeeId: userObj.managerId.employeeId,
+              email: userObj.managerId.email
+            } : null,
+            // Account status info
+            accountInfo: {
+              isActive: userObj.isActive,
+              lastLogin: userObj.lastLogin,
+              memberSince: userObj.createdAt,
+              lastUpdated: userObj.updatedAt
+            }
+          };
+        } catch (leaveError) {
+          console.error(`Error fetching leave stats for user ${user._id}:`, leaveError);
+          
+          // Return user with default stats if leave requests fail
+          const leaveBalances = userObj.leaveBalances || {
+            vacation: 21,
+            sick: 12,
+            casual: 12,
+            academic: 5
+          };
+
+          return {
+            ...userObj,
+            stats: {
+              totalLeaveRequests: 0,
+              pendingLeaves: 0,
+              approvedLeaves: 0,
+              rejectedLeaves: 0,
+              totalLeaveBalance: leaveBalances.vacation + leaveBalances.sick + leaveBalances.casual + leaveBalances.academic,
+              totalUsedDays: 0,
+              remainingBalance: leaveBalances.vacation + leaveBalances.sick + leaveBalances.casual + leaveBalances.academic,
+              recentLeaves: []
+            },
+            fullName: `${userObj.firstName} ${userObj.lastName}`,
+            managerInfo: userObj.managerId ? {
+              id: userObj.managerId._id,
+              name: `${userObj.managerId.firstName} ${userObj.managerId.lastName}`,
+              employeeId: userObj.managerId.employeeId
+            } : null,
+            accountInfo: {
+              isActive: userObj.isActive,
+              lastLogin: userObj.lastLogin,
+              memberSince: userObj.createdAt,
+              lastUpdated: userObj.updatedAt
+            }
+          };
+        }
+      })
+    );
+
+    // Calculate summary statistics
+    const summaryStats = {
+      totalUsers: total,
+      activeUsers: usersWithStats.filter(user => user.isActive).length,
+      inactiveUsers: usersWithStats.filter(user => !user.isActive).length,
+      totalPendingLeaves: usersWithStats.reduce((sum, user) => sum + user.stats.pendingLeaves, 0),
+      departmentBreakdown: usersWithStats.reduce((acc, user) => {
+        acc[user.department] = (acc[user.department] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      roleBreakdown: usersWithStats.reduce((acc, user) => {
+        acc[user.role] = (acc[user.role] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    };
+
+    res.json({
+      success: true,
+      data: usersWithStats,
+      summary: summaryStats,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get all users with details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };

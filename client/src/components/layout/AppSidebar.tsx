@@ -10,7 +10,8 @@ import {
   BarChart3,
   User,
   LogOut,
-  Building2
+  Building2,
+  Users2Icon
 } from "lucide-react";
 
 import {
@@ -56,6 +57,7 @@ const adminItems = [
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Settings", url: "/admin/settings", icon: Settings },
+  { title: "Balance", url: "/users", icon: Users2Icon },
 ];
 
 export function AppSidebar() {

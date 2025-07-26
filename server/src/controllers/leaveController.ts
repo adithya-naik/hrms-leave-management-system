@@ -1,8 +1,10 @@
 import { Response } from 'express';
-import { LeaveRequest } from '@/models/LeaveRequest';
-import { User } from '@/models/User';
-import { AuthRequest, LeaveType } from '@/types';
-import { LeaveCalculator } from '@/utils/leaveCalculator';
+import { LeaveRequest } from '../models/LeaveRequest';
+import { User } from '../models/User';
+import { AuthRequest, LeaveType } from '../types';
+import { LeaveCalculator } from '../utils/leaveCalculator';
+import { emailService } from '../services/emailService';
+import { format } from 'date-fns';
 
 export const createLeaveRequest = async (req: AuthRequest, res: Response) => {
   try {
@@ -47,7 +49,7 @@ export const createLeaveRequest = async (req: AuthRequest, res: Response) => {
     }
 
     // Get user and check balance (except for WFH)
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate('managerId', 'firstName lastName email');
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -86,6 +88,29 @@ export const createLeaveRequest = async (req: AuthRequest, res: Response) => {
 
     // Populate user data
     await leaveRequest.populate('userId', 'firstName lastName employeeId department');
+
+    // Send email notification to manager
+    if (user.managerId?.email) {
+      try {
+        await emailService.sendLeaveRequestNotification(
+          user.managerId.email,
+          `${user.firstName} ${user.lastName}`,
+          user.employeeId,
+          leaveRequest.leaveType,
+          format(leaveRequest.from, 'MMM dd, yyyy'),
+          format(leaveRequest.to, 'MMM dd, yyyy'),
+          leaveRequest.days,
+          leaveRequest.reason,
+          leaveRequest._id.toString()
+        );
+        console.log(`📧 Leave request email sent to manager: ${user.managerId.email}`);
+      } catch (emailError) {
+        console.error('Failed to send leave request email:', emailError);
+        // Don't fail the request if email fails
+      }
+    } else {
+      console.log('No manager email found for user:', user.employeeId);
+    }
 
     res.status(201).json({
       success: true,
@@ -171,7 +196,8 @@ export const updateLeaveRequest = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId!;
     const userRole = req.user?.role!;
 
-    const leaveRequest = await LeaveRequest.findById(id).populate('userId');
+    const leaveRequest = await LeaveRequest.findById(id)
+      .populate('userId', 'firstName lastName email employeeId');
     
     if (!leaveRequest || leaveRequest.deletedAt) {
       return res.status(404).json({
@@ -181,7 +207,7 @@ export const updateLeaveRequest = async (req: AuthRequest, res: Response) => {
     }
 
     // Authorization check
-    if (userRole === 'EMPLOYEE' && leaveRequest.userId.toString() !== userId) {
+    if (userRole === 'EMPLOYEE' && leaveRequest.userId._id.toString() !== userId) {
       return res.status(403).json({
         success: false,
         message: 'You can only update your own leave requests'
@@ -203,6 +229,9 @@ export const updateLeaveRequest = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Get approver details for email
+    const approver = await User.findById(userId).select('firstName lastName');
+
     // Update leave request
     if (status) {
       leaveRequest.status = status;
@@ -212,7 +241,7 @@ export const updateLeaveRequest = async (req: AuthRequest, res: Response) => {
         
         // Update user balance if approved (except WFH)
         if (status === 'APPROVED' && leaveRequest.leaveType !== 'WFH') {
-          const user = await User.findById(leaveRequest.userId);
+          const user = await User.findById(leaveRequest.userId._id);
           if (user) {
             const balanceKey = leaveRequest.leaveType.toLowerCase() as keyof typeof user.leaveBalances;
             user.leaveBalances[balanceKey] -= leaveRequest.days;
@@ -231,6 +260,27 @@ export const updateLeaveRequest = async (req: AuthRequest, res: Response) => {
     });
 
     await leaveRequest.save();
+
+    // Send status update email to employee
+    if (leaveRequest.userId?.email && status && ['APPROVED', 'REJECTED', 'CANCELLED'].includes(status)) {
+      try {
+        await emailService.sendLeaveStatusUpdate(
+          leaveRequest.userId.email,
+          `${leaveRequest.userId.firstName} ${leaveRequest.userId.lastName}`,
+          status as 'APPROVED' | 'REJECTED' | 'CANCELLED',
+          leaveRequest.leaveType,
+          format(leaveRequest.from, 'MMM dd, yyyy'),
+          format(leaveRequest.to, 'MMM dd, yyyy'),
+          leaveRequest.days,
+          comment,
+          approver ? `${approver.firstName} ${approver.lastName}` : undefined
+        );
+        console.log(`📧 Leave status update email sent to: ${leaveRequest.userId.email}`);
+      } catch (emailError) {
+        console.error('Failed to send leave status update email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
 
     res.json({
       success: true,

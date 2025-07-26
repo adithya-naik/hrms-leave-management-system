@@ -167,6 +167,11 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  async getAllUsersWithDetails(params?: any) {
+  const queryString = params ? `?${new URLSearchParams(params)}` : '';
+  return this.request<PaginatedResponse<any>>(`/users/all-details${queryString}`);
+}
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
