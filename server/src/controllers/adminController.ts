@@ -1,8 +1,8 @@
 import { Response } from 'express';
-import { User } from '@/models/User';
-import { LeaveRequest } from '@/models/LeaveRequest';
-import { Holiday } from '@/models/Holiday';
-import { AuthRequest } from '@/types';
+import { User } from '../models/User';
+import { LeaveRequest } from '../models/LeaveRequest';
+import { Holiday } from '../models/Holiday';
+import { AuthRequest } from '../middleware/auth';
 
 export const getDashboardStats = async (req: AuthRequest, res: Response) => {
   try {
@@ -70,17 +70,18 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
       ];
     }
 
-    if (department) {
+    if (department && department !== 'all') {
       query.department = department;
     }
 
-    if (role) {
+    if (role && role !== 'all') {
       query.role = role;
     }
 
     const [users, total] = await Promise.all([
       User.find(query)
         .populate('managerId', 'firstName lastName employeeId')
+        .select('-password')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),
@@ -116,18 +117,30 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     delete updates._id;
     delete updates.__v;
 
-    const user = await User.findByIdAndUpdate(
-      id,
-      updates,
-      { new: true, runValidators: true }
-    ).populate('managerId', 'firstName lastName employeeId');
-
-    if (!user) {
+    // Validate user exists first
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
+
+    // Prevent self-deactivation
+    if (updates.isActive === false && existingUser._id.toString() === req.user?.userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot deactivate your own account'
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      updates,
+      { new: true, runValidators: true }
+    )
+      .populate('managerId', 'firstName lastName employeeId')
+      .select('-password');
 
     res.json({
       success: true,
@@ -136,6 +149,22 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Update user error:', error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: Object.values(error.errors).map((err: any) => err.message)
+      });
+    }
+
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or Employee ID already exists'
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -174,10 +203,27 @@ export const createHoliday = async (req: AuthRequest, res: Response) => {
   try {
     const { name, date, type, description } = req.body;
 
+    // Validate required fields
+    if (!name || !date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and date are required'
+      });
+    }
+
+    // Check if holiday already exists on this date
+    const existingHoliday = await Holiday.findOne({ date: new Date(date) });
+    if (existingHoliday) {
+      return res.status(400).json({
+        success: false,
+        message: 'A holiday already exists on this date'
+      });
+    }
+
     const holiday = new Holiday({
       name,
       date: new Date(date),
-      type,
+      type: type || 'PUBLIC',
       description
     });
 
@@ -190,6 +236,15 @@ export const createHoliday = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Create holiday error:', error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: Object.values(error.errors).map((err: any) => err.message)
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Internal server error'

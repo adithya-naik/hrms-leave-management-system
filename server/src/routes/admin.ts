@@ -5,21 +5,25 @@ import {
   updateUser,
   getHolidays,
   createHoliday
-} from '@/controllers/adminController';
-import { authenticate, authorize } from '@/middleware/auth';
+} from '../controllers/adminController';
+import { authenticate, authorize, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
-// All admin routes require authentication and admin role
+// All admin routes require authentication first
 router.use(authenticate);
-router.use(authorize('ADMIN', 'MANAGER'));
 
-router.get('/dashboard', getDashboardStats);
-router.get('/users', getUsers);
-router.patch('/users/:id', authorize('ADMIN'), updateUser);
+// Admin dashboard - accessible by both ADMIN and MANAGER
+router.get('/dashboard', authorize('ADMIN', 'MANAGER'), getDashboardStats);
+
+// User management - accessible by both ADMIN and MANAGER
+router.get('/users', authorize('ADMIN', 'MANAGER'), getUsers);
+
+// User update - ADMIN only
+router.patch('/users/:id', requireAdmin, updateUser);
 
 // Holiday management
-router.get('/holidays', getHolidays);
-router.post('/holidays', authorize('ADMIN'), createHoliday);
+router.get('/holidays', authorize('ADMIN', 'MANAGER'), getHolidays);
+router.post('/holidays', requireAdmin, createHoliday);
 
 export default router;

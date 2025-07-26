@@ -1,27 +1,46 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  Users, 
-  Calendar, 
-  TrendingUp, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Users,
+  Calendar,
+  TrendingUp,
+  Clock,
+  CheckCircle,
+  XCircle,
   AlertCircle,
   Search,
   Filter,
   MoreHorizontal,
-  UserPlus
+  UserPlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api";
 import { useEffect } from "react";
-
+import UserModal from "@/components/admin/UserModal";
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
@@ -33,20 +52,26 @@ export default function AdminDashboard() {
     pendingApprovals: 0,
     totalLeaveRequests: 0,
     approvedThisMonth: 0,
-    rejectedThisMonth: 0
+    rejectedThisMonth: 0,
   });
   const [loading, setLoading] = useState(true);
-
-  const departments = ["Engineering", "Marketing", "HR", "Finance", "Operations"];
+  const [userModal, setUserModal] = useState({ isOpen: false, user: null });
+  const departments = [
+    "Engineering",
+    "Marketing",
+    "HR",
+    "Finance",
+    "Operations",
+  ];
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'users') {
+    if (activeTab === "users") {
       fetchUsers();
-    } else if (activeTab === 'approvals') {
+    } else if (activeTab === "approvals") {
       fetchPendingApprovals();
     }
   }, [activeTab, searchTerm, departmentFilter]);
@@ -56,7 +81,7 @@ export default function AdminDashboard() {
       const response = await apiClient.getDashboardStats();
       setDashboardStats(response.data);
     } catch (error) {
-      console.error('Failed to fetch dashboard stats:', error);
+      console.error("Failed to fetch dashboard stats:", error);
     }
   };
 
@@ -65,12 +90,12 @@ export default function AdminDashboard() {
       setLoading(true);
       const params: any = {};
       if (searchTerm) params.search = searchTerm;
-      if (departmentFilter !== 'all') params.department = departmentFilter;
-      
+      if (departmentFilter !== "all") params.department = departmentFilter;
+
       const response = await apiClient.getUsers(params);
       setUsers(response.data);
     } catch (error) {
-      console.error('Failed to fetch users:', error);
+      console.error("Failed to fetch users:", error);
     } finally {
       setLoading(false);
     }
@@ -79,21 +104,24 @@ export default function AdminDashboard() {
   const fetchPendingApprovals = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getLeaveRequests({ status: 'PENDING' });
+      const response = await apiClient.getLeaveRequests({ status: "PENDING" });
       setPendingApprovals(response.data);
     } catch (error) {
-      console.error('Failed to fetch pending approvals:', error);
+      console.error("Failed to fetch pending approvals:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApproveReject = async (id: string, status: 'APPROVED' | 'REJECTED') => {
+  const handleApproveReject = async (
+    id: string,
+    status: "APPROVED" | "REJECTED"
+  ) => {
     try {
       await apiClient.updateLeaveRequest(id, { status });
       fetchPendingApprovals();
     } catch (error) {
-      console.error('Failed to update leave request:', error);
+      console.error("Failed to update leave request:", error);
     }
   };
 
@@ -120,6 +148,25 @@ export default function AdminDashboard() {
         return "bg-gray-100 text-gray-800";
     }
   };
+  const handleAddUser = () => {
+    setUserModal({ isOpen: true, user: null });
+  };
+
+  const handleEditUser = (user: any) => {
+    setUserModal({ isOpen: true, user });
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (window.confirm("Are you sure you want to delete this user?")) {
+      try {
+        await apiClient.deleteUser(userId);
+        toast.success("User deleted successfully");
+        fetchUsers();
+      } catch (error) {
+        toast.error("Failed to delete user");
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -134,40 +181,46 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="shadow-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Employees
+            </CardTitle>
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.totalEmployees}</div>
-            <p className="text-xs text-muted-foreground">
-              +12 from last month
-            </p>
+            <div className="text-2xl font-bold">
+              {dashboardStats.totalEmployees}
+            </div>
+            <p className="text-xs text-muted-foreground">+12 from last month</p>
           </CardContent>
         </Card>
 
         <Card className="shadow-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Pending Approvals
+            </CardTitle>
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.pendingApprovals}</div>
-            <p className="text-xs text-muted-foreground">
-              Require attention
-            </p>
+            <div className="text-2xl font-bold">
+              {dashboardStats.pendingApprovals}
+            </div>
+            <p className="text-xs text-muted-foreground">Require attention</p>
           </CardContent>
         </Card>
 
         <Card className="shadow-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month Leaves</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              This Month Leaves
+            </CardTitle>
             <Calendar className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.approvedThisMonth}</div>
-            <p className="text-xs text-muted-foreground">
-              85% approved rate
-            </p>
+            <div className="text-2xl font-bold">
+              {dashboardStats.approvedThisMonth}
+            </div>
+            <p className="text-xs text-muted-foreground">85% approved rate</p>
           </CardContent>
         </Card>
 
@@ -178,9 +231,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">99.5%</div>
-            <p className="text-xs text-muted-foreground">
-              Uptime this month
-            </p>
+            <p className="text-xs text-muted-foreground">Uptime this month</p>
           </CardContent>
         </Card>
       </div>
@@ -216,20 +267,32 @@ export default function AdminDashboard() {
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>Latest leave requests and approvals</CardDescription>
+              <CardDescription>
+                Latest leave requests and approvals
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="flex items-center space-x-4 border-b border-border pb-3">
+                  <div
+                    key={i}
+                    className="flex items-center space-x-4 border-b border-border pb-3"
+                  >
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                       <Calendar className="h-4 w-4 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium">John Doe requested vacation leave</p>
-                      <p className="text-xs text-muted-foreground">2 hours ago</p>
+                      <p className="text-sm font-medium">
+                        John Doe requested vacation leave
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        2 hours ago
+                      </p>
                     </div>
-                    <Badge variant="outline" className="bg-yellow-50 text-yellow-800">
+                    <Badge
+                      variant="outline"
+                      className="bg-yellow-50 text-yellow-800"
+                    >
                       Pending
                     </Badge>
                   </div>
@@ -250,7 +313,10 @@ export default function AdminDashboard() {
                     <span className="text-sm font-medium">{dept}</span>
                     <div className="flex items-center space-x-2">
                       <div className="w-20 bg-muted rounded-full h-2">
-                        <div className="bg-primary h-2 rounded-full" style={{ width: `${Math.random() * 100}%` }} />
+                        <div
+                          className="bg-primary h-2 rounded-full"
+                          style={{ width: `${Math.random() * 100}%` }}
+                        />
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {Math.floor(Math.random() * 20 + 5)} active
@@ -270,9 +336,11 @@ export default function AdminDashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <CardTitle>Employee Management</CardTitle>
-                <CardDescription>Manage employee accounts and leave balances</CardDescription>
+                <CardDescription>
+                  Manage employee accounts and leave balances
+                </CardDescription>
               </div>
-              <Button className="gradient-primary">
+              <Button className="gradient-primary" onClick={handleAddUser}>
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add Employee
               </Button>
@@ -286,18 +354,24 @@ export default function AdminDashboard() {
                 <Input
                   placeholder="Search employees..."
                   value={searchTerm}
+                  b
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
-              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <Select
+                value={departmentFilter}
+                onValueChange={setDepartmentFilter}
+              >
                 <SelectTrigger className="w-full sm:w-48">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
                   {departments.map((dept) => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -324,31 +398,50 @@ export default function AdminDashboard() {
                         <div className="flex items-center space-x-3">
                           <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
                             <span className="text-xs font-medium text-primary-foreground">
-                              {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                              {user.firstName.charAt(0)}
+                              {user.lastName.charAt(0)}
                             </span>
                           </div>
                           <div>
-                            <p className="font-medium">{user.firstName} {user.lastName}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                            <p className="text-xs text-muted-foreground">{user.employeeId}</p>
+                            <p className="font-medium">
+                              {user.firstName} {user.lastName}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {user.email}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {user.employeeId}
+                            </p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getRoleColor(user.role)} variant="secondary">
+                        <Badge
+                          className={getRoleColor(user.role)}
+                          variant="secondary"
+                        >
                           {user.role}
                         </Badge>
                       </TableCell>
                       <TableCell>{user.department}</TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <div>V: {user.leaveBalances.vacation} | S: {user.leaveBalances.sick}</div>
-                          <div className="text-muted-foreground">C: {user.leaveBalances.casual} | A: {user.leaveBalances.academic}</div>
+                          <div>
+                            V: {user.leaveBalances.vacation} | S:{" "}
+                            {user.leaveBalances.sick}
+                          </div>
+                          <div className="text-muted-foreground">
+                            C: {user.leaveBalances.casual} | A:{" "}
+                            {user.leaveBalances.academic}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(user.status)} variant="secondary">
-                          {user.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        <Badge
+                          className={getStatusColor(user.status)}
+                          variant="secondary"
+                        >
+                          {user.isActive ? "ACTIVE" : "INACTIVE"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -358,6 +451,24 @@ export default function AdminDashboard() {
                         <Button variant="ghost" size="sm">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditUser(user)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user._id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -372,59 +483,82 @@ export default function AdminDashboard() {
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle>Pending Approvals</CardTitle>
-            <CardDescription>Leave requests awaiting manager approval</CardDescription>
+            <CardDescription>
+              Leave requests awaiting manager approval
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {pendingApprovals.map((request: any) => (
-                <div key={request._id} className="border border-border rounded-lg p-4">
+                <div
+                  key={request._id}
+                  className="border border-border rounded-lg p-4"
+                >
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-3">
                       <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
                         <span className="text-sm font-medium text-primary-foreground">
-                          {request.userId?.firstName?.charAt(0)}{request.userId?.lastName?.charAt(0)}
+                          {request.userId?.firstName?.charAt(0)}
+                          {request.userId?.lastName?.charAt(0)}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium">{request.userId?.firstName} {request.userId?.lastName}</p>
-                        <p className="text-sm text-muted-foreground">{request.userId?.employeeId}</p>
+                        <p className="font-medium">
+                          {request.userId?.firstName} {request.userId?.lastName}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {request.userId?.employeeId}
+                        </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="bg-yellow-50 text-yellow-800">
+                    <Badge
+                      variant="outline"
+                      className="bg-yellow-50 text-yellow-800"
+                    >
                       {request.leaveType}
                     </Badge>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
                       <p className="text-sm font-medium">Duration</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(request.from), "MMM dd")} - {format(new Date(request.to), "MMM dd")} ({request.days} days)
+                        {format(new Date(request.from), "MMM dd")} -{" "}
+                        {format(new Date(request.to), "MMM dd")} ({request.days}{" "}
+                        days)
                       </p>
                     </div>
                     <div>
                       <p className="text-sm font-medium">Reason</p>
-                      <p className="text-sm text-muted-foreground">{request.reason}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {request.reason}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm font-medium">Applied On</p>
-                      <p className="text-sm text-muted-foreground">{format(new Date(request.createdAt), "MMM dd, yyyy")}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(request.createdAt), "MMM dd, yyyy")}
+                      </p>
                     </div>
                   </div>
 
                   <div className="flex space-x-2">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => handleApproveReject(request._id, 'APPROVED')}
+                      onClick={() =>
+                        handleApproveReject(request._id, "APPROVED")
+                      }
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Approve
                     </Button>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="destructive"
-                      onClick={() => handleApproveReject(request._id, 'REJECTED')}
+                      onClick={() =>
+                        handleApproveReject(request._id, "REJECTED")
+                      }
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Reject
@@ -440,6 +574,15 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       )}
+      <UserModal
+        isOpen={userModal.isOpen}
+        onClose={() => setUserModal({ isOpen: false, user: null })}
+        user={userModal.user}
+        onSuccess={() => {
+          fetchUsers();
+          fetchDashboardData();
+        }}
+      />
     </div>
   );
 }

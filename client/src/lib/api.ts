@@ -61,7 +61,7 @@ class ApiClient {
   }
 
   async getCurrentUser() {
-    return this.request<ApiResponse<any>>('/auth/me');
+    return this.request<ApiResponse<any>>('/users/me');
   }
 
   async refreshToken(refreshToken: string) {
@@ -97,23 +97,65 @@ class ApiClient {
     });
   }
 
-  // Admin endpoints
+  // User Management endpoints
   async getUsers(params?: any) {
     const queryString = params ? `?${new URLSearchParams(params)}` : '';
-    return this.request<PaginatedResponse<any>>(`/admin/users${queryString}`);
+    return this.request<PaginatedResponse<any>>(`/users${queryString}`);
   }
 
-  async updateUser(id: string, data: any) {
-    return this.request<ApiResponse<any>>(`/admin/users/${id}`, {
-      method: 'PATCH',
+  async getUserById(id: string) {
+    return this.request<ApiResponse<any>>(`/users/${id}`);
+  }
+
+  async createUser(data: any) {
+    return this.request<ApiResponse<any>>('/users', {
+      method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async getDashboardStats() {
-    return this.request<ApiResponse<any>>('/admin/dashboard');
+  async updateUser(id: string, data: any) {
+    return this.request<ApiResponse<any>>(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
+  async updateUserPassword(id: string, data: any) {
+    return this.request<ApiResponse<any>>(`/users/${id}/password`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deactivateUser(id: string) {
+    return this.request<ApiResponse<any>>(`/users/${id}/deactivate`, {
+      method: 'PUT',
+    });
+  }
+
+  async activateUser(id: string) {
+    return this.request<ApiResponse<any>>(`/users/${id}/activate`, {
+      method: 'PUT',
+    });
+  }
+
+  async deleteUser(id: string) {
+    return this.request<ApiResponse<any>>(`/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getManagers() {
+    return this.request<ApiResponse<any[]>>('/users/managers');
+  }
+
+  // Dashboard and Admin endpoints
+  async getDashboardStats() {
+    return this.request<ApiResponse<any>>('/users/dashboard-stats');
+  }
+
+  // Holiday endpoints
   async getHolidays(params?: any) {
     const queryString = params ? `?${new URLSearchParams(params)}` : '';
     return this.request<ApiResponse<any[]>>(`/holidays${queryString}`);

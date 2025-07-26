@@ -1,16 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Filter, Search, Calendar, Eye, Edit, Trash2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import {
+  Plus,
+  Filter,
+  Search,
+  Calendar,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Eye,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { format } from "date-fns";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
-import { useEffect } from "react";
 
 const statusFilters = [
   { value: "all", label: "All Status" },
@@ -33,41 +62,53 @@ export default function LeavesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
     total: 0,
-    pages: 0
+    pages: 0,
   });
 
   useEffect(() => {
     fetchLeaveRequests();
-  }, [statusFilter, typeFilter, searchTerm]);
+  }, [statusFilter, typeFilter, searchTerm, pagination.page]);
 
   const fetchLeaveRequests = async () => {
     try {
       setLoading(true);
       const params: any = {
         page: pagination.page,
-        limit: pagination.limit
+        limit: pagination.limit,
       };
-      
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (typeFilter !== 'all') params.leaveType = typeFilter;
+      if (statusFilter !== "all") params.status = statusFilter;
+      if (typeFilter !== "all") params.leaveType = typeFilter;
       if (searchTerm) params.search = searchTerm;
-      
+
       const response = await apiClient.getLeaveRequests(params);
       setLeaveRequests(response.data);
       setPagination(response.pagination);
     } catch (error) {
-      console.error('Failed to fetch leave requests:', error);
-      toast.error('Failed to fetch leave requests');
+      console.error("Failed to fetch leave requests:", error);
+      toast.error("Failed to fetch leave requests");
     } finally {
       setLoading(false);
     }
   };
+
+  const filteredRequests = leaveRequests
+    .filter((req) =>
+      statusFilter === "all" ? true : req.status === statusFilter
+    )
+    .filter((req) =>
+      typeFilter === "all" ? true : req.leaveType === typeFilter
+    )
+    .filter((req) =>
+      !searchTerm
+        ? true
+        : req.reason.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -116,11 +157,11 @@ export default function LeavesPage() {
 
   const handleCancelRequest = async (id: string) => {
     try {
-      await apiClient.updateLeaveRequest(id, { status: 'CANCELLED' });
+      await apiClient.updateLeaveRequest(id, { status: "CANCELLED" });
       toast.success("Leave request cancelled successfully");
       fetchLeaveRequests();
     } catch (error) {
-      toast.error('Failed to cancel leave request');
+      toast.error("Failed to cancel leave request");
     }
   };
 
@@ -163,7 +204,7 @@ export default function LeavesPage() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -179,7 +220,7 @@ export default function LeavesPage() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Leave Type</label>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -213,7 +254,7 @@ export default function LeavesPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="mt-2 text-muted-foreground">Loading...</p>
             </div>
-          ) : leaveRequests.length === 0 ? (
+          ) : filteredRequests.length === 0 ? (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No leave requests found</h3>
@@ -244,7 +285,7 @@ export default function LeavesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {leaveRequests.map((request: any) => (
+                  {filteredRequests.map((request) => (
                     <TableRow key={request._id}>
                       <TableCell>
                         <Badge
@@ -267,7 +308,7 @@ export default function LeavesPage() {
                       <TableCell>
                         <span className="font-medium">{request.days}</span>
                         <span className="text-sm text-muted-foreground ml-1">
-                          day{request.days > 1 ? 's' : ''}
+                          day{request.days > 1 ? "s" : ""}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -288,7 +329,8 @@ export default function LeavesPage() {
                           </p>
                           {request.approverId && (
                             <p className="text-xs text-muted-foreground">
-                              by {request.approverId.firstName} {request.approverId.lastName}
+                              by {request.approverId.firstName}{" "}
+                              {request.approverId.lastName}
                             </p>
                           )}
                         </div>

@@ -22,7 +22,7 @@ export const validate = (schema: ZodSchema) => {
   };
 };
 
-// Validation schemas
+// Auth validation schemas
 export const loginSchema = z.object({
   email: z.string().email('Invalid email format'),
   password: z.string().min(6, 'Password must be at least 6 characters')
@@ -38,6 +38,7 @@ export const registerSchema = z.object({
   role: z.enum(['EMPLOYEE', 'MANAGER', 'ADMIN']).optional()
 });
 
+// Leave request validation schemas
 export const leaveRequestSchema = z.object({
   leaveType: z.enum(['SICK', 'CASUAL', 'VACATION', 'ACADEMIC', 'WFH', 'COMP_OFF']),
   from: z.string().refine(date => !isNaN(Date.parse(date)), 'Invalid from date'),
@@ -49,3 +50,85 @@ export const leaveUpdateSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED', 'CANCELLED']).optional(),
   comment: z.string().max(200).optional()
 });
+
+// User management validation schemas
+export const createUserSchema = z.object({
+  firstName: z.string()
+    .min(1, 'First name is required')
+    .max(50, 'First name must be less than 50 characters')
+    .trim(),
+  lastName: z.string()
+    .min(1, 'Last name is required')
+    .max(50, 'Last name must be less than 50 characters')
+    .trim(),
+  email: z.string()
+    .email('Valid email is required')
+    .toLowerCase()
+    .trim(),
+  password: z.string()
+    .min(6, 'Password must be at least 6 characters long'),
+  role: z.enum(['EMPLOYEE', 'MANAGER', 'ADMIN'])
+    .optional()
+    .default('EMPLOYEE'),
+  department: z.string()
+    .min(1, 'Department is required')
+    .trim(),
+  managerId: z.string()
+    .optional()
+    .refine(val => !val || val === 'none' || z.string().regex(/^[0-9a-fA-F]{24}$/).safeParse(val).success, 'Invalid manager ID'),
+  leaveBalances: z.object({
+    sick: z.number().min(0).default(12),
+    casual: z.number().min(0).default(12),
+    vacation: z.number().min(0).default(21),
+    academic: z.number().min(0).default(5)
+  }).optional(),
+  isActive: z.boolean().optional().default(true)
+});
+
+export const updateUserSchema = z.object({
+  firstName: z.string()
+    .min(1, 'First name cannot be empty')
+    .max(50, 'First name must be less than 50 characters')
+    .trim()
+    .optional(),
+  lastName: z.string()
+    .min(1, 'Last name cannot be empty')
+    .max(50, 'Last name must be less than 50 characters')
+    .trim()
+    .optional(),
+  email: z.string()
+    .email('Valid email is required')
+    .toLowerCase()
+    .trim()
+    .optional(),
+  role: z.enum(['EMPLOYEE', 'MANAGER', 'ADMIN'])
+    .optional(),
+  department: z.string()
+    .min(1, 'Department cannot be empty')
+    .trim()
+    .optional(),
+  managerId: z.string()
+    .optional()
+    .refine(val => !val || val === 'none' || z.string().regex(/^[0-9a-fA-F]{24}$/).safeParse(val).success, 'Invalid manager ID'),
+  leaveBalances: z.object({
+    sick: z.number().min(0).optional(),
+    casual: z.number().min(0).optional(),
+    vacation: z.number().min(0).optional(),
+    academic: z.number().min(0).optional()
+  }).optional(),
+  isActive: z.boolean().optional()
+});
+
+export const updatePasswordSchema = z.object({
+  newPassword: z.string()
+    .min(6, 'Password must be at least 6 characters long')
+});
+
+// Validation middleware functions
+export const validateUser = validate(createUserSchema);
+export const validateUserUpdate = validate(updateUserSchema);
+export const validatePasswordUpdate = validate(updatePasswordSchema);
+export const validateLogin = validate(loginSchema);
+export const validateRegister = validate(registerSchema);
+export const validateLeaveRequest = validate(leaveRequestSchema);
+export const validateLeaveUpdate = validate(leaveUpdateSchema);

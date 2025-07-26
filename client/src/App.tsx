@@ -10,12 +10,11 @@ import 'react-toastify/dist/ReactToastify.css';
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import LeavesPage from "./pages/LeavesPage";
-import LeaveRequestPage from "./pages/LeaveRequestPage";
 import CalendarPage from "./pages/CalendarPage";
 import ProfilePage from "./pages/ProfilePage";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
-
+import ApplyLeavePage from "@/pages/ApplyLeavePage";
 // Layout
 import { Layout } from "./components/layout/Layout";
 import { useAuthStore } from "./store/authStore";
@@ -69,7 +68,7 @@ const App = () => (
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="leaves" element={<LeavesPage />} />
-            <Route path="leaves/new" element={<LeaveRequestPage />} />
+           <Route path="/leaves/new" element={<ApplyLeavePage />} />
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="admin/*" element={<AdminDashboard />} />
